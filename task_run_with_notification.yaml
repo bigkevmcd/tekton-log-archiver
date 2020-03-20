@@ -1,0 +1,29 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  name: run-test-task
+spec:
+  taskRef:
+    name: test-task
+    kind: Task
+  inputs:
+    params:
+    - name: message
+      value: This is a message from the TaskRun
+    resources:
+    - name: source
+      resourceSpec:
+        type: git
+        params:
+          - name: revision
+            value: master
+          - name: url
+            value: https://github.com/GoogleContainerTools/skaffold
+  outputs:
+    resources:
+    - name: notification
+      resourceSpec:
+        type: cloudEvent
+        params:
+          - name: targetURI
+            value: http://pipelinetracker.default/

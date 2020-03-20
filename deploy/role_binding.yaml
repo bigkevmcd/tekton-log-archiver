@@ -1,0 +1,11 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tekton-log-archiver
+subjects:
+- kind: ServiceAccount
+  name: tekton-log-archiver
+roleRef:
+  kind: Role
+  name: tekton-log-archiver
+  apiGroup: rbac.authorization.k8s.io

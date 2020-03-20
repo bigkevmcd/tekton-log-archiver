@@ -1,0 +1,10 @@
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineRun
+metadata:
+  name: demo-pipeline-run
+  annotations:
+    "tekton.dev/archive": "true"
+spec:
+  pipelineRef:
+    name: demo-pipeline
+  serviceAccountName: 'default'

@@ -23,24 +23,25 @@ import (
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1alpha1"
 )
 
-var log = logf.Log.WithName("controller_pipelinerun")
+var logger = logf.Log.WithName("controller_pipelinerun")
 
 // Add creates a new PipelineRun Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
+func Add(mgr manager.Manager, a archiver.LogArchiver) error {
 	clientset, err := newClientSet()
 	if err != nil {
 		return err
 	}
-	return add(mgr, newReconciler(mgr, clientset))
+	return add(mgr, newReconciler(mgr, clientset, a))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, clientset *kubernetes.Clientset) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager, clientset *kubernetes.Clientset, la archiver.LogArchiver) reconcile.Reconciler {
 	return &ReconcilePipelineRun{
 		client:    mgr.GetClient(),
 		scheme:    mgr.GetScheme(),
 		clientset: clientset,
+		archiver:  la,
 	}
 }
 
@@ -77,6 +78,7 @@ type ReconcilePipelineRun struct {
 	client    client.Client
 	scheme    *runtime.Scheme
 	clientset *kubernetes.Clientset
+	archiver  archiver.LogArchiver
 }
 
 // Reconcile reads that state of the cluster for a PipelineRun object and makes changes based on the state read
@@ -85,7 +87,7 @@ type ReconcilePipelineRun struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcilePipelineRun) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
+	reqLogger := logger.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling PipelineRun")
 	ctx := context.Background()
 
@@ -108,37 +110,35 @@ func (r *ReconcilePipelineRun) Reconcile(request reconcile.Request) (reconcile.R
 	state := w.RunState()
 	if !state.Complete() {
 		return reconcile.Result{}, nil
-
 	}
 
 	for _, tr := range pipelineRun.Status.TaskRuns {
-		if err != nil {
-			continue
-		}
 		logs, err := logsForPod(ctx, request.Namespace, tr.Status.PodName, r.clientset)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		log.Info(fmt.Sprintf("KEVIN!!! output from logs:\n%s\n", logs))
+		_, err = r.archiver.ArchivePipelineRun(pipelineRun, logs)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 	reqLogger.Info("archived logs")
 	return reconcile.Result{}, nil
 }
 
-func logsForPod(ctx context.Context, ns, name string, c *kubernetes.Clientset) (string, error) {
+func logsForPod(ctx context.Context, ns, name string, c *kubernetes.Clientset) ([]byte, error) {
 	podLogOpts := corev1.PodLogOptions{}
 	req := c.CoreV1().Pods(ns).GetLogs(name, &podLogOpts)
 	podLogs, err := req.Stream()
 	if err != nil {
-		return "", fmt.Errorf("error in opening stream: %w", err)
+		return nil, fmt.Errorf("error in opening stream: %w", err)
 	}
 	defer podLogs.Close()
 
 	buf := new(bytes.Buffer)
 	_, err = io.Copy(buf, podLogs)
 	if err != nil {
-		return "", fmt.Errorf("error in copy information from podLogs to buf: %w", err)
+		return nil, fmt.Errorf("error in copy information from podLogs to buf: %w", err)
 	}
-	str := buf.String()
-	return str, nil
+	return buf.Bytes(), nil
 }

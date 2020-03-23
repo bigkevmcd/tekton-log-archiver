@@ -15,7 +15,7 @@ spec:
       serviceAccountName: tekton-log-archiver
       containers:
         - name: tekton-log-archiver
-          image: quay.io/kmcdermo/log-archiver
+          image: quay.io/kmcdermo/tekton-log-archiver
           command:
           - tekton-log-archiver
           imagePullPolicy: Always

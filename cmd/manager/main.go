@@ -109,7 +109,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := controller.AddToManager(mgr); err != nil {
+	if err := controller.AddToManager(mgr, &loggingArchiver{}); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}
@@ -151,4 +151,12 @@ func addMetrics(ctx context.Context, cfg *rest.Config, namespace string) {
 			log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects", "error", err.Error())
 		}
 	}
+}
+
+type loggingArchiver struct {
+}
+
+func (loggingArchiver) ArchivePipelineRun(pr *pipelinev1.PipelineRun, output []byte) (string, error) {
+	log.Info(fmt.Sprintf("KEVIN!!! archiving PipelineRun %#v with output %#v\n", pr, output))
+	return "https://example.com", nil
 }
